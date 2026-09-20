@@ -1,0 +1,517 @@
+{
+  "name": "CRM Data Cleaning Workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "6de4bd31-3771-4478-a47f-a8b51d234be0",
+      "name": "Start Demo",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -304,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "spreadsheet",
+        "options": {}
+      },
+      "id": "7242404e-1716-4330-859b-4c1c8f487e8b",
+      "name": "Read Messy Lead Data",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -64,
+        784
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CWgkvS9Pa12c29N7",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "firstName",
+              "name": "firstName",
+              "value": "={{ $json.firstName ? $json.firstName.trim().toLowerCase().replace(/\\b\\w/g, c => c.toUpperCase()) : \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "lastName",
+              "name": "lastName",
+              "value": "={{ $json.lastName ? $json.lastName.trim().toLowerCase().replace(/\\b\\w/g, c => c.toUpperCase()) : \"\" }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "b5aff444-ede0-4eb5-a012-ae0b7cd9f9c0",
+      "name": "1. Fix Names Capitalization",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        848,
+        624
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Clean and validate email\nconst email = $input.item.json.email || '';\nconst cleaned = email.trim().toLowerCase();\n\n// Basic email validation regex\nconst emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\nconst isValid = emailRegex.test(cleaned);\n\nreturn {\n  ...($input.item.json),\n  email: isValid ? cleaned : '',\n  emailValid: isValid\n};"
+      },
+      "id": "9bceca68-9ddd-4fdc-b212-846ea00af893",
+      "name": "2. Clean Invalid Emails",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Normalize phone number to format: (555) 123-4567\nconst phone = $input.item.json.phone || '';\n\n// Remove all non-digit characters\nconst digits = phone.replace(/\\D/g, '');\n\n// Format if we have 10 digits\nlet normalized = phone;\nif (digits.length === 10) {\n  normalized = `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;\n} else if (digits.length === 11 && digits[0] === '1') {\n  // Handle +1 country code\n  normalized = `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;\n}\n\nreturn {\n  ...($input.item.json),\n  phone: normalized\n};"
+      },
+      "id": "bc300bfe-a299-4266-b82d-e4a8277c5386",
+      "name": "3. Normalize Phone Numbers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        304,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "city",
+              "name": "city",
+              "value": "={{ $json.city ? $json.city.trim().toLowerCase().replace(/\\b\\w/g, c => c.toUpperCase()) : \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "source",
+              "name": "source",
+              "value": "={{ $json.source ? $json.source.trim().toUpperCase() : \"UNKNOWN\" }}",
+              "type": "string"
+            },
+            {
+              "id": "status",
+              "name": "status",
+              "value": "={{ $json.status ? $json.status.trim().toLowerCase() : \"new\" }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "5f0044f5-784c-4ecf-8f14-d612f7669edc",
+      "name": "4. Standardize City, Source, Status",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        576,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Convert budget string to numeric value\nconst budget = $input.item.json.budget || '';\n\n// Remove currency symbols, commas, and whitespace\nconst cleaned = budget.toString().replace(/[$,\\s]/g, '');\n\n// Parse to number\nconst numericBudget = parseFloat(cleaned) || 0;\n\nreturn {\n  ...($input.item.json),\n  budget: numericBudget,\n  budgetFormatted: `$${numericBudget.toLocaleString()}`\n};"
+      },
+      "id": "e13779f8-dd88-4f6a-b489-3589185b3be1",
+      "name": "5. Convert Budget to Numeric",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        288,
+        1232
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "130b0c48-b363-47e6-8a85-7dd49bef7a80",
+      "name": "6. Detect Duplicate Leads",
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        1216
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Fill missing values with defaults\nconst item = $input.item.json;\n\nreturn {\n  firstName: item.firstName || 'Unknown',\n  lastName: item.lastName || 'Unknown',\n  email: item.email || '',\n  emailValid: item.emailValid !== undefined ? item.emailValid : false,\n  phone: item.phone || 'Not provided',\n  city: item.city || 'Unknown',\n  source: item.source || 'UNKNOWN',\n  status: item.status || 'new',\n  budget: item.budget || 0,\n  budgetFormatted: item.budgetFormatted || '$0',\n  notes: item.notes || 'No notes'\n};"
+      },
+      "id": "c9033011-663e-4074-ae10-457f52349950",
+      "name": "7. Fill Missing Values",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        1248
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Apply all transformations in sequence\nconst item = $input.item.json;\n\n// 1. Fix names capitalization\nconst firstName = item.firstName ? item.firstName.trim().toLowerCase().replace(/\\b\\w/g, c => c.toUpperCase()) : '';\nconst lastName = item.lastName ? item.lastName.trim().toLowerCase().replace(/\\b\\w/g, c => c.toUpperCase()) : '';\n\n// 2. Clean email\nconst emailCleaned = (item.email || '').trim().toLowerCase();\nconst emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\nconst email = emailRegex.test(emailCleaned) ? emailCleaned : '';\nconst emailValid = emailRegex.test(emailCleaned);\n\n// 3. Normalize phone\nconst phoneDigits = (item.phone || '').replace(/\\D/g, '');\nlet phone = item.phone || '';\nif (phoneDigits.length === 10) {\n  phone = `(${phoneDigits.slice(0, 3)}) ${phoneDigits.slice(3, 6)}-${phoneDigits.slice(6)}`;\n} else if (phoneDigits.length === 11 && phoneDigits[0] === '1') {\n  phone = `(${phoneDigits.slice(1, 4)}) ${phoneDigits.slice(4, 7)}-${phoneDigits.slice(7)}`;\n}\n\n// 4. Standardize fields\nconst city = item.city ? item.city.trim().toLowerCase().replace(/\\b\\w/g, c => c.toUpperCase()) : '';\nconst source = item.source ? item.source.trim().toUpperCase() : 'UNKNOWN';\nconst status = item.status ? item.status.trim().toLowerCase() : 'new';\n\n// 5. Convert budget\nconst budgetCleaned = (item.budget || '').toString().replace(/[$,\\s]/g, '');\nconst budget = parseFloat(budgetCleaned) || 0;\nconst budgetFormatted = `$${budget.toLocaleString()}`;\n\n// 7. Fill defaults (step 6 duplicate detection happens at node level)\nreturn {\n  firstName: firstName || 'Unknown',\n  lastName: lastName || 'Unknown',\n  email: email,\n  emailValid: emailValid,\n  phone: phone || 'Not provided',\n  city: city || 'Unknown',\n  source: source,\n  status: status,\n  budget: budget,\n  budgetFormatted: budgetFormatted,\n  notes: item.notes || 'No notes'\n};"
+      },
+      "id": "b168c9b8-5439-453a-bf90-e8377a8519ac",
+      "name": "Run All Transformations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        432,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "compare": "selectedFields",
+        "fieldsToCompare": "email",
+        "options": {}
+      },
+      "id": "d2ab8962-c17c-4986-84f5-c829f699a469",
+      "name": "Remove Duplicates",
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 1.1,
+      "position": [
+        672,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1pd6Xm-nmWrzevwCnVMOKxWnXePENSJCmF8qNMUb1pm8",
+          "mode": "list",
+          "cachedResultName": "Messy Sheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1pd6Xm-nmWrzevwCnVMOKxWnXePENSJCmF8qNMUb1pm8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1pd6Xm-nmWrzevwCnVMOKxWnXePENSJCmF8qNMUb1pm8/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "firstName"
+          ],
+          "schema": [
+            {
+              "id": "Full Name",
+              "displayName": "Full Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Email Address",
+              "displayName": "Email Address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Phone Number",
+              "displayName": "Phone Number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "City",
+              "displayName": "City",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Budget",
+              "displayName": "Budget",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "firstName",
+              "displayName": "firstName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "lastName",
+              "displayName": "lastName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "emailValid",
+              "displayName": "emailValid",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "city",
+              "displayName": "city",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "budget",
+              "displayName": "budget",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "budgetFormatted",
+              "displayName": "budgetFormatted",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "notes",
+              "displayName": "notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "9b977dae-e2aa-43c3-ab27-64c977227454",
+      "name": "Update Cleaned Data",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        960,
+        880
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CWgkvS9Pa12c29N7",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Start Demo": {
+      "main": [
+        [
+          {
+            "node": "Read Messy Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Messy Lead Data": {
+      "main": [
+        [
+          {
+            "node": "1. Fix Names Capitalization",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "2. Clean Invalid Emails",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "3. Normalize Phone Numbers",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "4. Standardize City, Source, Status",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "5. Convert Budget to Numeric",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "6. Detect Duplicate Leads",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "7. Fill Missing Values",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Run All Transformations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run All Transformations": {
+      "main": [
+        [
+          {
+            "node": "Remove Duplicates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove Duplicates": {
+      "main": [
+        [
+          {
+            "node": "Update Cleaned Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "193e4f53-8834-489d-b7a4-24634dd45871",
+  "meta": {
+    "instanceId": "e2a48683ef06c48e8e72c86f0a41656aa069c398dd027aaf8cabe766bd4181ce"
+  },
+  "id": "Lh8bhXmEt9jn6H5W",
+  "tags": []
+}
